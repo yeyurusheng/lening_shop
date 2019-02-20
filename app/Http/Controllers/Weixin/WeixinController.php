@@ -45,15 +45,15 @@ class WeixinController extends Controller{
     }
 
     /**
-     * 处理下载图片
+     * 下载图片文件
      */
-    public function dwImage($mediaId){
+    public function dwImage($media_id){
         $client = new GuzzleHttp\Client();
         //echo '<pre>';var_dump($client);echo '</pre>';
         //获取access_token
         $access_token = $this->getWXAccessToken();
         //拼接下载图片的URL
-        $url='https://api.weixin.qq.com/cgi-bin/media/get?access_token='.$access_token.'&media_id='.$mediaId;
+        $url='https://api.weixin.qq.com/cgi-bin/media/get?access_token='.$access_token.'&media_id='.$media_id;
         //使用GuzzleHttp下载文件
         $response = $client->get($url);
         //获取文件名称
@@ -72,6 +72,28 @@ class WeixinController extends Controller{
             echo '保存图片失败';
             return false;
         }
+    }
+
+    /**
+     * 下载语音文件
+     */
+    public function dlVoice($media_id){
+        $url = 'https://api.weixin.qq.com/cgi-bin/media/get?access_token='.$this->getWXAccessToken().'&media_id='.$media_id;
+        //保存图片
+        $client = new GuzzleHttp\Client();
+        $response = $client->get($url);
+        //获取文件名
+        $file_info = $response->getHeader('Content-disposition');
+        $file_name = substr(rtrim($file_info[0],'"'),-20);
+        $wx_image_path = 'wx/voice/'.$file_name;
+        //保存语音
+        $r = Storage::disk('local')->put($wx_image_path,$response->getBody());
+        if($r){   //保存成功
+            return true;
+        }else{   //保存失败
+            return false;
+        }
+
     }
 
     /**
@@ -94,54 +116,42 @@ class WeixinController extends Controller{
             }elseif($xml->MsgType=='image'){   //用户发送图片信息
                 //判断是否需要保存图片信息
                 if(1){   //下载图片信息
-                    $res=$this->dwImage($xml->MediaId);
-                    if($res){
-                        $hint='我们已经收集到你的照片了';
-                    }else{
-                        $hint='我们没有收到您的照片';
-                    }
+                    $this->dwImage($xml->MediaId);
                     $xml_response = '<xml><ToUserName><![CDATA['.$openid.']]></ToUserName><FromUserName><![CDATA['.$xml->ToUserName.']]></FromUserName><CreateTime>'.time().'</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA['. date('Y-m-d H:i:s') .']]></Content></xml>';
                     echo $xml_response;
+                }
+            }elseif($xml->MsgType=='voice'){   //处理语音文件
+                $this->dlVoice($xml->MediaId);
+            }elseif($xml->MsgType=='event'){   //处理事件类型
+                if($event=='subscribe'){       //扫码关注事件
+                    $sub_time = $xml->CreateTime;    //扫码关注时间
+                    //获取用户信息
+                    $user_info = $this->getUserInfo($openid);
+                    //保存用户信息
+                    $u = WeixinUser::where(['openid'=>$openid])->first();
+                    if($u){     //用户不存在
+                        echo '用户不存在';
+                    }else{
+                        $user_data = [
+                            'openid' => $openid,
+                            'add_time' => time(),
+                            "nickname"=>$user_info["nickname"],
+                            'sex' => $user_info['sex'],
+                            'headimgurl' => $user_info['headimgurl'],
+                            'subscribe_time' => $sub_time,
+                        ];
+                    }
+                }elseif($event=='CLICK'){
+                    if($xml->EventKey=='kefu'){
+                        $this->kefu($openid,$xml->ToUserName);
+                    }
                 }
             }
         }
 
-        //判断事件类型
-        if($event=='subscribe') {
-            $sub_time = $xml->CreateTime;               //扫码关注时间
 
-
-            echo 'openid:' . $openid;
-            echo '</br>';
-            echo 'sub_time:' . $sub_time;
-            //获取用户信息
-            $user_info = $this->getUserInfo($openid);
-            echo '<pre>';
-            print_r($user_info);
-            echo '</pre>';
-            //保存用户信息
-            $u = WeixinUser::where(['openid' => $openid])->first();
-            if ($u) {
-                echo '用户不存在';
-            } else {
-                $user_data = [
-                    'openid' => $openid,
-                    'add_time' => time(),
-                    "nickname"=>$user_info["nickname"],
-                    'sex' => $user_info['sex'],
-                    'headimgurl' => $user_info['headimgurl'],
-                    'subscribe_time' => $sub_time,
-                ];
-                $id = WeixinUser::insertGetId($user_data);    //保存用户信息
-                var_dump($id);
-            }
-        }elseif($event=='CLICK'){
-            if($xml->EventKey=='kefu'){
-                $this->kefu($openid,$xml->ToUserName);
-            }
-        }
-        $log_str=date('Y-m-d H:i:s')."\n".$data."\n<<<<<<";
-        file_put_contents('logs/wx_event.log',$log_str,FILE_APPEND);
+//        $log_str=date('Y-m-d H:i:s')."\n".$data."\n<<<<<<";
+//        file_put_contents('logs/wx_event.log',$log_str,FILE_APPEND);
     }
 
 
