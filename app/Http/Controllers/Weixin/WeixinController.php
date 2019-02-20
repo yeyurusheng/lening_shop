@@ -33,6 +33,34 @@ class WeixinController extends Controller{
     }
 
     /**
+     * 处理下载图片
+     */
+    public function dwImage($mediaId){
+        $client = new GuzzleHttp\Client();
+        //echo '<pre>';var_dump($client);echo '</pre>';
+        //获取access_token
+        $access_token = $this->getWXAccessToken();
+        //拼接下载图片的URL
+        $url='https://api.weixin.qq.com/cgi-bin/media/get?access_token='.$access_token.'&media_id='.$mediaId;
+        //使用GuzzleHttp下载文件
+        $response = $client->get($url);
+        //获取文件名称
+        $file_info=$response->getHeader('Content-disposition');
+        $file_name=substr(rtrim($file_info[0],'"'),-20);
+        $WxImageSavePath='wx/image/'.$file_name;
+        //保存路径/home/wwwroot/shop/storage/app/wx/images
+        //保存图片
+        $res=Storage::disk('local')->put($WxImageSavePath,$response->getBody());
+        if($res){
+            //保存成功
+            return true;
+        }else{
+            //保存失败
+            return false;
+        }
+    }
+
+    /**
      * 接收微信服务器事件推送
      */
     public function wxEvent(){
@@ -52,7 +80,12 @@ class WeixinController extends Controller{
             }elseif($xml->MsgType=='image'){   //用户发送图片信息
                 //判断是否需要保存图片信息
                 if(1){   //下载图片信息
-                    $this->dwImage($xml->mediaId);
+                    $this->dwImage($xml->MediaId);
+                    if($res){
+                        $hint='我们已经收集到你的照片了';
+                    }else{
+                        $hint='我们没有收到您的照片';
+                    }
                     $xml_response = '<xml><ToUserName><![CDATA['.$openid.']]></ToUserName><FromUserName><![CDATA['.$xml->ToUserName.']]></FromUserName><CreateTime>'.time().'</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA['. date('Y-m-d H:i:s') .']]></Content></xml>';
                     echo $xml_response;
                 }
@@ -97,33 +130,7 @@ class WeixinController extends Controller{
         file_put_contents('logs/wx_event.log',$log_str,FILE_APPEND);
     }
 
-    /**
-     * 处理下载图片
-     */
-    public function dwImage($mediaId){
-        $client = new GuzzleHttp\Client();
-        //echo '<pre>';var_dump($client);echo '</pre>';
-        //获取access_token
-        $access_token = $this->getWXAccessToken();
-        //拼接下载图片的URL
-        $url='https://api.weixin.qq.com/cgi-bin/media/get?access_token='.$access_token.'&media_id='.$mediaId;
-        //使用GuzzleHttp下载文件
-        $response = $client->get($url);
-        //获取文件名称
-        $file_info=$response->getHeader('Content-disposition');
-        $file_name=substr(rtrim($file_info[0],'"'),-20);
-        $WxImageSavePath='wx/image/'.$file_name;
-        //保存路径/home/wwwroot/shop/storage/app/wx/images
-        //保存图片
-        $res=Storage::disk('local')->put($WxImageSavePath,$response->getBody());
-        if($res){
-            //保存成功
-            return true;
-        }else{
-            //保存失败
-            return false;
-        }
-    }
+
 
     /**
      * 客服处理
