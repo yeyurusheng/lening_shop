@@ -19,9 +19,13 @@ class WeixinController extends Controller{
         $this->getUserInfo(1);
     }
 
-    /** 微信首次接入 */
+    /**
+     * 接收事件推送
+     */
     public function validToken(){
-        echo $_GET['echostr'];
+        $data = file_get_contents("php://input");
+        $log_str = date('Y-m-d H:i:s') . "\n" . $data . "\n<<<<<<<";
+        file_put_contents('logs/wx_event.log',$log_str,FILE_APPEND);
     }
 
     /**
@@ -80,7 +84,7 @@ class WeixinController extends Controller{
             }elseif($xml->MsgType=='image'){   //用户发送图片信息
                 //判断是否需要保存图片信息
                 if(1){   //下载图片信息
-                    $this->dwImage($xml->MediaId);
+                    $res=$this->dwImage($xml->MediaId);
                     if($res){
                         $hint='我们已经收集到你的照片了';
                     }else{
