@@ -20,6 +20,14 @@ class WeixinController extends Controller{
     }
 
     /**
+     * 首次接入
+     */
+    public function validToken1()
+    {
+        echo $_GET['echostr'];
+    }
+
+    /**
      * 接收事件推送
      */
     public function validToken(){
@@ -57,9 +65,11 @@ class WeixinController extends Controller{
         $res=Storage::disk('local')->put($WxImageSavePath,$response->getBody());
         if($res){
             //保存成功
+            echo '保存图片成功';
             return true;
         }else{
             //保存失败
+            echo '保存图片失败';
             return false;
         }
     }
